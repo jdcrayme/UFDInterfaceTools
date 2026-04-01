@@ -62,8 +62,8 @@ TSharedRef<SWidget> URadialGaugeWidget::RebuildWidget()
     SlateFill = SNew(SRadialDonut)
       .StartAngleDeg(StartAngle)
       .EndAngleDeg(EndAngle)
-      .Radius(Radius/2)
-      .Thickness(20)
+      .InnerRadius(10)
+      .OuterRadius(Radius - 10)
       .Color(FLinearColor::Blue);
 
     SlateRoot->AddSlot()[SlateFill.ToSharedRef()];
@@ -124,8 +124,8 @@ void URadialGaugeWidget::SynchronizeProperties()
   {
     SlateFill->SetStartAngle(StartAngle);
     SlateFill->SetEndAngle(AngleFromValue(CurrentValue));
-    SlateFill->SetRadius(Radius/2);
-    SlateFill->SetThickness(20);
+    SlateFill->SetInnerRadius(10);
+    SlateFill->SetOuterRadius(Radius-20);
     SlateFill->SetColor(FLinearColor::Blue);
   }
   

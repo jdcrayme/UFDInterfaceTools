@@ -420,7 +420,9 @@ void SADI::DrawSlipSkidIndicator(const FGeometry& AllottedGeometry, FSlateWindow
   FSlateDrawElement::MakeBox(
     OutDrawElements,
     LayerId,
-    AllottedGeometry.ToPaintGeometry(SlipCenter - SlipSize * 0.5f, SlipSize),
+    AllottedGeometry.ToPaintGeometry(
+        FVector2f(SlipSize), 
+        FSlateLayoutTransform(FVector2f(SlipCenter - SlipSize * 0.5f))),
     FAppStyle::GetBrush("WhiteBrush"),
     ESlateDrawEffect::None,
     FLinearColor::White

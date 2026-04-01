@@ -4,8 +4,8 @@ void SRadialDonut::Construct(const FArguments& InArgs)
 {
 	StartAngleDeg = InArgs._StartAngleDeg;
 	EndAngleDeg = InArgs._EndAngleDeg;
-	Radius = InArgs._Radius;
-	Thickness = InArgs._Thickness;
+	InnerRadius = InArgs._InnerRadius;
+	OuterRadius = InArgs._OuterRadius;
 	Color = InArgs._Color;
 	NumSegments = InArgs._NumSegments;
 }
@@ -28,20 +28,20 @@ void SRadialDonut::SetEndAngle(float NewEndAngleDeg)
 	}
 }
 
-void SRadialDonut::SetRadius(float NewRadius)
+void SRadialDonut::SetInnerRadius(float NewRadius)
 {
-	if (!FMath::IsNearlyEqual(Radius, NewRadius))
+	if (!FMath::IsNearlyEqual(InnerRadius, NewRadius))
 	{
-		Radius = NewRadius;
+		InnerRadius = NewRadius;
 		Invalidate(EInvalidateWidget::Paint);
 	}
 }
 
-void SRadialDonut::SetThickness(float NewThickness)
+void SRadialDonut::SetOuterRadius(float NewRadius)
 {
-	if (!FMath::IsNearlyEqual(Thickness, NewThickness))
+	if (!FMath::IsNearlyEqual(OuterRadius, NewRadius))
 	{
-		Thickness = NewThickness;
+		OuterRadius = NewRadius;
 		Invalidate(EInvalidateWidget::Paint);
 	}
 }
@@ -66,89 +66,77 @@ void SRadialDonut::SetNumSegments(int32 NewNumSegments)
 
 FVector2D SRadialDonut::ComputeDesiredSize(float) const
 {
-	return FVector2D(Radius * 2.f, Radius * 2.f);
+	float radius = FMath::Max(InnerRadius,OuterRadius);
+	return FVector2D(radius * 2.f, radius * 2.f);
 }
 
-int32 SRadialDonut::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
-							const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
-							int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+int32 SRadialDonut::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	const FVector2D Center = AllottedGeometry.GetLocalSize() * 0.5f;
-
-	float StartRad = FMath::DegreesToRadians(StartAngleDeg);
-	float EndRad = FMath::DegreesToRadians(EndAngleDeg);
-
-	int32 Segments = FMath::Max(NumSegments, 2);
-	
-	// Outer and inner radius calculation
-	float OuterRadius = Radius;
-	float InnerRadius = FMath::Max(OuterRadius - Thickness, 0.f);
-
-	// Dont draw if inner and outer radius are too similar
-	if (FMath::Abs(InnerRadius - OuterRadius) < 0.01)
-		return LayerId;
-	
-	// Precompute points for outer and inner arcs
-	TArray<FVector2D> OuterPoints;
-	TArray<FVector2D> InnerPoints;
-	OuterPoints.Reserve(Segments + 1);
-	InnerPoints.Reserve(Segments + 1);
-
-	for (int32 i = 0; i <= Segments; ++i)
-	{
-		float Alpha = float(i) / Segments;
-		float Angle = FMath::Lerp(StartRad, EndRad, Alpha);
-		FVector2D Dir(FMath::Cos(Angle), FMath::Sin(Angle));
-		OuterPoints.Add(Center + Dir * OuterRadius);
-		InnerPoints.Add(Center + Dir * InnerRadius);
-	}
-
-	// Prepare vertices and indices for triangulation
-	TArray<FSlateVertex> Vertices;
-	TArray<uint32> Indices;
-	// Inside OnPaint():
-	FSlateRenderTransform RenderTransform = AllottedGeometry.GetAccumulatedRenderTransform();
-	FColor SlateColor = Color.ToFColor(true);
-  
-	// Helper lambda to convert FVector2D -> FVector2f
-	auto ToFVector2f = [](const FVector2D& Vec) { return FVector2f(Vec.X, Vec.Y); };
+    const FLinearColor ArcColor = FLinearColor::Red;
  
-	// Add outer points vertices
-	for (const FVector2D& Pt : OuterPoints)
-	{
-		Vertices.Add(FSlateVertex::Make(
-			RenderTransform,
-			ToFVector2f(Pt),
-			FVector2f(0.f, 0.f), // UV coords
-			SlateColor,
-			SlateColor
-		));
-	}
+    // 1. Prepare vertex and index arrays
+    TArray<FSlateVertex> Vertices;
+    TArray<SlateIndex> Indices;
  
-	// Add inner points vertices
-	for (const FVector2D& Pt : InnerPoints)
-	{
-		Vertices.Add(FSlateVertex::Make(
-			RenderTransform,
-			ToFVector2f(Pt),
-			FVector2f(0.f, 0.f),
-			SlateColor,
-			SlateColor
-		));
-	}
+    // Total points = (Segments + 1) * 2
+    Vertices.Reserve((NumSegments + 1) * 2);
+    Indices.Reserve(NumSegments * 6);
  
-	// MakeCustomVerts call (9 arguments)
-	FSlateDrawElement::MakeCustomVerts(
-		OutDrawElements,
-		LayerId,
-		FSlateResourceHandle(), // No material
-		Vertices,
-		Indices,
-		nullptr,     // No instance data
-		0,           // Instance offset
-		1,           // Num instances
-		ESlateDrawEffect::None
-	);
-
-	return LayerId + 1;
+    const float RadiansStart = FMath::DegreesToRadians(StartAngleDeg);
+    const float RadiansEnd = FMath::DegreesToRadians(EndAngleDeg);
+    const FVector2D Center = AllottedGeometry.GetLocalSize() * 0.5f;
+ 
+    for (int32 i = 0; i <= NumSegments; ++i)
+    {
+        float CurrentAngle = FMath::Lerp(RadiansStart, RadiansEnd, static_cast<float>(i) / NumSegments);
+        float SinAngle, CosAngle;
+        FMath::SinCos(&SinAngle, &CosAngle, CurrentAngle);
+ 
+        // Vector pointing from center to the arc edge
+        FVector2D Direction(CosAngle, SinAngle);
+ 
+        // Create Outer Vertex
+        FVector2D OuterPos = Center + (Direction * OuterRadius);
+        Vertices.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(
+            AllottedGeometry.GetAccumulatedRenderTransform(), 
+            FVector2f(OuterPos), 
+            FVector2f::ZeroVector, 
+            ArcColor.ToFColor(true)));
+ 
+        // Create Inner Vertex
+        FVector2D InnerPos = Center + (Direction * InnerRadius);
+        Vertices.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(
+            AllottedGeometry.GetAccumulatedRenderTransform(), 
+            FVector2f(InnerPos), 
+            FVector2f::ZeroVector, 
+            ArcColor.ToFColor(true)));
+ 
+        // Define Triangles (except for the last point)
+        if (i < NumSegments)
+        {
+            uint32 BaseIdx = i * 2;
+            // Triangle 1
+            Indices.Add(BaseIdx);
+            Indices.Add(BaseIdx + 1);
+            Indices.Add(BaseIdx + 2);
+            // Triangle 2
+            Indices.Add(BaseIdx + 2);
+            Indices.Add(BaseIdx + 1);
+            Indices.Add(BaseIdx + 3);
+        }
+    }
+ 
+    // 2. Create the Custom Vert Draw Element
+    FSlateDrawElement::MakeCustomVerts(
+        OutDrawElements,
+        LayerId,
+        FSlateResourceHandle(), // Use a white square texture for solid color
+        Vertices,
+        Indices,
+        nullptr,
+        0,
+        0
+    );
+ 
+    return LayerId;
 }

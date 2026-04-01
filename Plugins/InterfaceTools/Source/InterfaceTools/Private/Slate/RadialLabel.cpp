@@ -81,7 +81,9 @@ int32 SRadialLabel::OnPaint(const FPaintArgs& Args,
 	FSlateDrawElement::MakeText(
 		OutDrawElements,
 		LayerId,
-		AllottedGeometry.ToPaintGeometry(LabelPosition, FVector2D(1.f, 1.f)),
+		AllottedGeometry.ToPaintGeometry(
+			FVector2f(1.f,1.f), 
+			FSlateLayoutTransform(FVector2f(LabelPosition))),
 		Text.Get().ToString(),
 		Font.Get(),
 		ESlateDrawEffect::None,
